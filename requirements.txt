@@ -1,4 +1,4 @@
 streamlit
 assemblyai
-pyaudio
 websocket-client
+sounddevice

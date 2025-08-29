@@ -1,8 +1,11 @@
 import streamlit as st
 import assemblyai as aai
-import threading, time, json, wave, os, pyaudio, websocket
+import threading, wave, os, websocket
 from urllib.parse import urlencode
 from datetime import datetime
+import sounddevice as sd
+import numpy as np
+import queue
 
 # ------------------------
 # AssemblyAI Functions
@@ -38,17 +41,17 @@ class RecordingAgent:
         self.frames = []
         self.stop_event = threading.Event()
 
-        self.FRAMES_PER_BUFFER = 800
         self.SAMPLE_RATE = 16000
         self.CHANNELS = 1
-        self.FORMAT = pyaudio.paInt16
+        self.FRAMES_PER_BUFFER = 800  # ~50ms of audio at 16kHz
+        self.q = queue.Queue()
 
     def _save_wav(self):
         if not self.frames:
             return
         with wave.open(self.filename, "wb") as wf:
             wf.setnchannels(self.CHANNELS)
-            wf.setsampwidth(2)  # 16-bit
+            wf.setsampwidth(2)  # 16-bit PCM
             wf.setframerate(self.SAMPLE_RATE)
             wf.writeframes(b"".join(self.frames))
 
@@ -57,31 +60,49 @@ class RecordingAgent:
         params = {"sample_rate": self.SAMPLE_RATE}
         endpoint = f"wss://streaming.assemblyai.com/v3/ws?{urlencode(params)}"
 
-        audio = pyaudio.PyAudio()
-        stream = audio.open(
-            input=True, frames_per_buffer=self.FRAMES_PER_BUFFER,
-            channels=self.CHANNELS, format=self.FORMAT, rate=self.SAMPLE_RATE,
-        )
+        # Callback for sounddevice input
+        def callback(indata, frames, time, status):
+            if status:
+                print("Status:", status)
+            # Convert numpy array to bytes
+            self.q.put(indata.copy().tobytes())
 
+        # Open input stream
+        self.stream = sd.InputStream(
+            channels=self.CHANNELS,
+            samplerate=self.SAMPLE_RATE,
+            blocksize=self.FRAMES_PER_BUFFER,
+            dtype="int16",
+            callback=callback
+        )
+        self.stream.start()
+
+        # On websocket open → start sending audio
         def on_open(ws):
             def send_audio():
                 while not self.stop_event.is_set():
-                    data = stream.read(self.FRAMES_PER_BUFFER, exception_on_overflow=False)
+                    try:
+                        data = self.q.get(timeout=0.1)
+                    except queue.Empty:
+                        continue
                     self.frames.append(data)
                     ws.send(data, websocket.ABNF.OPCODE_BINARY)
             threading.Thread(target=send_audio, daemon=True).start()
 
-        ws_app = websocket.WebSocketApp(
+        # Create websocket connection to AssemblyAI
+        self.ws_app = websocket.WebSocketApp(
             endpoint, header={"Authorization": api_key}, on_open=on_open
         )
-        self.ws_thread = threading.Thread(target=ws_app.run_forever, daemon=True)
+        self.ws_thread = threading.Thread(target=self.ws_app.run_forever, daemon=True)
         self.ws_thread.start()
-        self.stream, self.audio, self.ws_app = stream, audio, ws_app
 
     def stop_recording(self):
         self.stop_event.set()
-        self.ws_app.close()
-        self.stream.stop_stream(); self.stream.close(); self.audio.terminate()
+        if hasattr(self, "ws_app"):
+            self.ws_app.close()
+        if hasattr(self, "stream"):
+            self.stream.stop()
+            self.stream.close()
         self._save_wav()
         return self.filename
 
