@@ -1,10 +1,11 @@
 ﻿# 🎤 Audio Agent – Architecture & Cost Flow
 
-### 1. Flow Overview
+## 1. Flow Overview
 	
 ![Flowchart](https://github.com/armaan4sure/Audio_Agent/blob/main/Audio_Agent.png)
 
-### 2. Components Used
+
+## 2. Components Used
 
 | Layer                        | Tool / Model                              | Purpose                                          |
 | ---------------------------- | ----------------------------------------- | ------------------------------------------------ |
@@ -16,7 +17,8 @@
 | **Deployment**               | Streamlit Cloud / GitHub integration      | CI/CD deployment                                 |
 
 
-### 3. Expected Costs*
+## 3. Expected Costs*
+
 | Service                     | Pricing Basis                                         | Estimate (per hour of audio)                                                                                    |
 | --------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **Azure Speech-to-Text**    | ~\$1 per audio hour (standard tier)                   | \$1.00                                                                                                          |
