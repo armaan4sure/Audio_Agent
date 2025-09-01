@@ -8,7 +8,7 @@ import assemblyai as aai
 # -----------------------
 # AssemblyAI setup (keep your real key in Streamlit secrets)
 # -----------------------
-aai.settings.api_key = "e208c82c90d04fed9702ef373fd54158"   # replace with your API key
+aai.settings.api_key = "xyz"   # replace with your API key
 
 def speech_to_text(audio_file):
     config = aai.TranscriptionConfig(
